@@ -1,0 +1,60 @@
+#!/bin/bash
+#coding=uft-8
+
+sourceIp=`ifconfig|grep -A 2 eth0|grep 'inet addr'|awk -F':' '{print $2}'|awk '{print $1}'`
+ping -I ${sourceIp} 116.31.102.89 -c 30 -n -i 0.1 | tail -2 > ping_hk.txt    
+
+#sleep 5
+if [ -e ping_hk.txt ]
+then
+    recv_num=`cat ping_hk.txt|head -1|awk '{print $4}'`
+    if [ ${recv_num} -lt 30 ]
+    then
+        mtr -a ${sourceIp} 116.31.102.89 -r -c 30 -n -i 0.1 > mtr_hk.txt
+	cat mtr_hk.txt > /tmp/mail.log
+	/usr/bin/mail -s "${sourceIp}主机到香港网络异常" 275986078@qq.com < /tmp/mail.log
+#	>ping_hk.txt
+#	>mtr_hk.txt
+#else
+#       exit 1
+    fi
+    max_ping=`cat ping_hk.txt|tail -1|awk '{split($4,arry_b,"/"); print arry_b[2]}'`
+    ping=`echo "scale =2;${max_ping}-10.0"|bc`
+    if [ $(echo "${ping} > 20"|bc) == 1 ]
+    then
+        mtr -a ${sourceIp} 116.31.102.89 -r -c 30 -n -i 0.1 > mtr_hk.txt
+	cat mtr_hk.txt > /tmp/mail.log
+	/usr/bin/mail -s "${sourceIp}主机延时变大" 275986078@qq.com < /tmp/mail.log
+    fi
+fi
+>ping_hk.txt
+>mtr_hk.txt
+
+#while [ "1" ]
+#do
+     RXeth0=`cat /proc/net/dev | grep eth0 | awk '{print $2}'`
+     TXeth0=`cat /proc/net/dev | grep eth0 | awk '{print $10}'`
+     RXeth1=`cat /proc/net/dev | grep eth1 | awk '{print $2}'`
+     TXeth1=`cat /proc/net/dev | grep eth1 | awk '{print $10}'`
+     sleep 1
+     RXeth0_1=`cat /proc/net/dev | grep eth0 | awk '{print $2}'`
+     TXeth0_1=`cat /proc/net/dev | grep eth0 | awk '{print $10}'`
+     RXeth1_1=`cat /proc/net/dev | grep eth1 | awk '{print $2}'`
+     TXeth1_1=`cat /proc/net/dev | grep eth1 | awk '{print $10}'`
+    
+     diff_rxeth0=`expr ${RXeth0_1} - ${RXeth0}`
+     diff_txeth0=`expr ${TXeth0_1} - ${TXeth0}`
+     diff_rxeth1=`expr ${RXeth1_1} - ${RXeth1}`
+     diff_txeth1=`expr ${TXeth1_1} - ${TXeth1}`
+
+     r0=$((diff_rxeth0 * 8))
+     t0=$((diff_txeth0 * 8))
+     r1=$((diff_rxeth1 * 8))
+     t1=$((diff_txeth1 * 8))
+     
+
+     if [ ${r0} -gt 150000 -o  ${t0} -gt 150000 -o ${r1} -gt 150000 -o ${t1} -gt 150000 ]
+     then
+         echo "${sourceIp}主机流量超过150M" >/tmp/mail.log
+	 /usr/bin/mail -s "${sourceIp}流量告警" 275986078@qq.com < /tmp/mail.log
+     fi
